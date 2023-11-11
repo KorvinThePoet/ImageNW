@@ -1,0 +1,142 @@
+###############################################
+#Загрузка
+#Библиотек
+###############################################
+
+import pandas as pd
+import numpy as np
+import os
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D,Activation, Dropout, Flatten, Dense
+from keras.preprocessing.image import ImageDataGenerator
+from keras.preprocessing import image
+import shutil
+import random
+
+###############################################
+#Подготовка
+#Данных
+#Для
+#Обучения
+###############################################
+
+# Загружаем тренировочный датасет
+traindata = pd.read_csv('C:/Python/MultiModal/train.csv',sep=';')
+# Устанавливаем путь для тренировочных данных(важно - без / на конце)
+train = 'C:/Python/MultiModal/Trainclear'
+# Устанавливаем путь для валидационных данных(важно - без / на конце)
+val = 'C:/Python/MultiModal/ValClear'
+# Устанавливаем размер, которому будут приводиться изображения(квадрат со сторонами sizeimage на sizeimage)
+sizeimage = 100
+# Требуемые нам значения меток. В данном случае в тренировочном наборе есть лишние данные, которые надо удалить(Потом важно сравнить столбцы, полученные в Y_train и перенести порядок оттуда(можно и вручную сделать))
+l1 = ['Животные','Кулинария','Путешествия','Развлечения и юмор','СМИ','Творчество и дизайн','Торговля и объявления','Философия и религия']
+# Убираем не нужные нам данные с неправильными метками
+for index, row in traindata.iterrows():
+    if not(row['label'] in l1):
+        traindata.drop(labels=[index],axis=0,inplace = True)
+#Выставляем метки в нужном порядке
+l1 = traindata['label'].unique()
+#Создаём набор с метками в формате one hot encoding
+y_train = pd.get_dummies(traindata, columns=["label"], dtype='int',)
+#Сверяем порядок
+print(y_train.columns,l1)
+# Создаем массив с id
+cat1 = y_train.pop('id')
+ids=cat1.array
+# Делаем image генератор, который будет изменять все наши изображения
+datagen = ImageDataGenerator(rescale=1./255)
+# Готовим тренировочные данные
+train_processing = datagen.flow_from_directory(
+    train ,
+    target_size=(sizeimage, sizeimage), # Размер изображений
+    batch_size=128, #Размер пакетов данных
+    class_mode='categorical')
+# Готовим валидационную выборку
+val_processing = datagen.flow_from_directory(
+    val ,
+    target_size=(sizeimage, sizeimage), # Размер изображений
+    batch_size=128, #Размер пакетов данных
+    class_mode='categorical')
+
+###############################################
+#Создание
+#и  
+#обучение
+#нейросети
+################################################
+
+# Устанавливаем входную для нейросети размерность(3 - количество цветовых каналов)
+input_shape = (sizeimage,sizeimage,3)
+# Количество эпох обучения нейросети
+epochs = 30
+# Размер одного батча
+batch_size = 128
+# Создание модели
+model = Sequential()
+model.add(Conv2D(50, (2, 2), input_shape=input_shape))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Conv2D(30, (2, 2)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Conv2D(20, (2, 2)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Flatten())
+model.add(Dense(64))
+model.add(Activation('relu'))
+model.add(Dense(32))
+model.add(Activation('relu'))
+model.add(Dense(8, activation='softmax'))
+# Компиляция модели
+model.compile(loss='categorical_crossentropy',
+              optimizer='adam',
+              metrics=['accuracy'])
+# Тренировка модели
+model.fit_generator(
+    train_processing,
+    steps_per_epoch=4000 // batch_size,
+    epochs=epochs,
+    validation_data=val_processing,
+    validation_steps=900 // batch_size)
+# steps_per_epoch=4000 это количество данных в тренировочном наборе, а validation_steps соответственно в валидационном 
+
+################################################
+#Загрузка тестового набора
+#и 
+#составление предсказаний
+#и 
+#их загрузка в csv
+################################################
+
+# Загрузка тестового набора
+test_data = pd.read_csv('C:/Python/MultiModal/Test.csv',sep=';')
+# Получение его ids
+ids2 = test_data.pop('id')
+ids2 = ids2.array
+# Датасет с предсказаниями в нужном формате
+output = pd.DataFrame(columns=['id','label'])
+# Путь папки с тестовыми изображениями(на этот раз с /)
+pathtest = 'C:/Python/MultiModal/Test/'
+# Загрузка изображений и запись предсказаний для них в output
+for i in ids2:
+    # Загрузка с подгонкой под sizeimage
+    img = image.load_img(pathtest+str(i)+'.jpg',target_size=(sizeimage,sizeimage))
+    # Превращение изображения в матрицу,которую можно будет скормить нейросети
+    img = image.img_to_array(img=img)
+    # Тоже что и ImageDataGenerator для тренировочного и валидационного набора, но для одного изображения(будет работать только из-за превращения в матрицу)
+    img /= 255
+    # Важно чтобы скормить нейросети. Черт знает почему, но он требует input shape (None,100,100,3), а изображение получает как (None,100,3). Никаких изменений для изображения не повлечет
+    img = img.reshape(-1,100,100,3)
+    # Нахождение номера предсказания
+    pred = np.argmax(model.predict(img))
+    # Трюк, где составляется словарь {"id":i,'label':l1[pred]}, который превращается в датафрейм, а потом добавляется к output
+    cat1 = pd.DataFrame([{"id":i,'label':l1[pred]}])
+    output = pd.concat([output,cat1],ignore_index=True)
+# Запись результата в csv(sep = ; по условию, но может какой угодно быть)    
+output.to_csv('C:/Python/MultiModal/res21.csv',sep=';',index=False)
+
+###############################################
