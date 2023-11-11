@@ -90,7 +90,7 @@ model.add(Dense(64))
 model.add(Activation('relu'))
 model.add(Dense(32))
 model.add(Activation('relu'))
-model.add(Dense(8, activation='softmax'))
+model.add(Dense(len(l1), activation='softmax'))
 # Компиляция модели
 model.compile(loss='categorical_crossentropy',
               optimizer='adam',
