@@ -1,0 +1,62 @@
+###############################################
+#Загрузка
+#Библиотек
+###############################################
+
+import pandas as pd
+import numpy as np
+import os
+import shutil
+import random as rn
+
+#################################################
+#Загрузка данных
+#и
+#подготовка 
+################################################
+
+# Загрузка тренировочного набора
+traindata = pd.read_csv('C:/Python/MultiModal/train.csv',sep=';')
+# Создание массива с Id
+ids = traindata['id'].array
+# Создание массива с метками
+labels = traindata['label'].array
+# Нужные нам метки
+l1 = ['Животные','Кулинария','Путешествия','Развлечения и юмор','СМИ','Творчество и дизайн','Торговля и объявления','Философия и религия']
+mainpath = 'C:/Python/MultiModal/TrainNW/'
+# Путь, куда будут помещаться отсортированные тренировочные изображения.Так же, в начале там должны храниться ВСЕ нужные нам для тренировки изображения
+trainpath = mainpath + 'Train/'
+# Путь, куда будут помещаться отсортированные изображения для валидации
+valpath = mainpath + 'Validation/'
+# Путь, куда будут помещаться все лишние данные
+forother = mainpath+'Other/'
+
+#################################################
+#Создание каталогов
+#и
+#Сортировка
+################################################
+
+# Создаём каталоги для прочего,тренировки и валидации
+os.mkdir(trainpath)
+os.mkdir(valpath)
+os.mkdir(forother)
+
+# Создаем нужные нам каталоги по названиям меток
+for i in l1:
+    os.mkdir(trainpath+i)
+    os.mkdir(valpath+i)
+# Устанавливаем вероятность перехода изображения в валидационную выборку
+procent_val = 20
+# Сортировка
+cnt1 = 0
+for i in ids:
+    if (labels[cnt1] in l1):
+        rand = rn.randint(0,100)
+        if rand < procent_val:
+            shutil.move(mainpath+str(i),valpath+labels[cnt1]+'/'+str(i)+'.jpg')
+        else:
+            shutil.move(mainpath+str(i),trainpath+labels[cnt1]+'/'+str(i)+'.jpg')   
+    else:
+        shutil.move(mainpath+str(i),forother+str(i))
+    cnt1 += 1
