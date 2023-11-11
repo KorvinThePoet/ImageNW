@@ -1,0 +1,61 @@
+import pandas as pd
+import numpy as np
+from scipy.sparse import lil_matrix
+import pickle as pk
+from scipy import sparse
+import scipy as sp
+from lightfm import LightFM
+from lightfm.datasets import fetch_movielens
+#Словарь users, где ключ - номер, а значение - id
+with open('/content/drive/MyDrive/OlimpE/userdict.pickle', 'rb') as f:
+    dictuser = pk.load(f)
+#Словарь item, где ключ - номер, а значение - id
+with open('/content/drive/MyDrive/OlimpE/itemdict.pickle', 'rb') as f:
+    dictitem = pk.load(f)
+#Матрица пересечения где координаты - (n_user;n_item)
+with open('/content/drive/MyDrive/OlimpE/sparse.pickle', 'rb') as f:
+    interactions = pk.load(f)
+#Создание модели
+model = LightFM(loss='warp')
+#Перевод матрицы в нужный формат
+interactions = interactions.tocoo()
+model.fit(interactions, epochs=1500,verbose=True)
+
+#Тестовые данные
+test_df = pd.read_csv('/content/drive/MyDrive/OlimpE/test_customer_ids.csv')
+
+#Каунтеры для отображения прогресса
+cnt1 = 0
+cnt2 = len(test_df['customer_id'])
+
+#Датасет,где хранятся результаты(Первый столбец - ID юзера, а остальные - IDs рекомендованных для него Items)
+resdf = pd.DataFrame(columns = ['customer_id','community_id_1','community_id_2','community_id_3','community_id_4','community_id_5','community_id_6','community_id_7'])
+
+#Преобразование DictUser в противоположный
+dictuser = dict(zip(dictuser.values(), dictuser.keys()))
+
+for i in test_df['customer_id']:
+  #Номер юзера с ID i
+  i2 = dictuser[i]
+
+  #Предсказание для юзера
+  cat1 = -model.predict(user_ids=i2,item_ids=np.arange(len(dictitem)),num_threads=4)
+
+  #Сортировка по возрастанию
+  cat1 = np.argsort(cat1)
+
+  t1 = 0
+  lr = [i]
+  if (cnt1 % 1000) == 0:
+    print(cnt1/cnt2*100,'%')
+  while len(lr) <= 7:
+    #Если рекомендация не входит в список интеракций юзера, то она добавляется к результирующему списку
+    if interactions[i2,t1] == 0:
+      lr.append(dictitem[cat1[t1]])
+    t1 += 1
+
+  resdf.loc[len(resdf.index)]  = lr
+  cnt1 += 1
+
+#Сохранение результата
+resdf.to_csv('/content/drive/MyDrive/OlimpE/res.csv',index=False)
