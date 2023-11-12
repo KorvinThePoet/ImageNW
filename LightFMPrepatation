@@ -1,0 +1,62 @@
+###############################################
+#Загрузка
+#Библиотек
+###############################################
+
+import pandas as pd
+import numpy as np
+from scipy.sparse import lil_matrix
+import pickle as pk
+from scipy import sparse
+import scipy as sp
+
+###############################################
+#Загрузка
+#и
+#Подготовка Данных
+###############################################
+
+# Загрузка данных 
+print('First stage')
+df = pd.read_csv('c:/OlimpAnswers2/OlimpE/train_df.tsv ', sep='\t')
+# Все уникальные пользователи
+c1 = df['community_id'].unique()
+# Все уникальные item
+c2 = df['customer_id'].unique()
+print('Second stage')
+# Создание разряженной матрицы
+n1 =lil_matrix((c2.size, c1.size))
+# Словари, где номера предметов и пользователей будут соответствовать их id
+dictUser = dict()
+dictItem = dict()
+# Заполняем словари
+cnt1 = 0
+for i in c1:
+    dictItem[i] = cnt1
+    cnt1 += 1
+cnt1 = 0
+for i in c2:
+    dictUser[i] = cnt1
+    cnt1 += 1
+# На всякий случай проверяем длинну
+print(len(dictItem))   
+print(len(dictUser))
+
+print('Third stage')
+# Заполняем разряженную матрицу
+cnt1 = 0
+for i, row in df.iterrows():
+    if row['status'] == 'P':
+        n1[dictUser[row['customer_id']],dictItem[row['community_id']]] = -1
+    else:
+        n1[dictUser[row['customer_id']],dictItem[row['community_id']]] = 1
+    cnt1 += 1
+    if (cnt1 % 100000)==0:
+         print(cnt1 / 100000)
+# Загружаем получившиеся словари и матрицу в picle
+with open('c:/OlimpAnswers2/OlimpE/sparse.pickle', 'wb') as f:
+    pk.dump(n1, f)
+with open('c:/OlimpAnswers2/OlimpE/userdict.pickle', 'wb') as f:
+     pk.dump(dictUser, f)
+with open('c:/OlimpAnswers2/OlimpE/itemdict.pickle', 'wb') as f:
+         pk.dump(dictItem, f)
